@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+out/.roundtrip/
+out/KIT.dwg
+.DS_Store
