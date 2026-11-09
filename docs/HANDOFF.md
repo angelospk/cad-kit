@@ -216,5 +216,9 @@ Not verified:
   with `gen/convert.sh`.
 - The ODA converter is a GUI program but runs headless from the command line:
   `ODAFileConverter <in dir> <out dir> ACAD2018 DWG 0 1 "*.dxf"`.
+- Every build writes new timestamps and GUIDs into `out/KIT.dxf`, and
+  `test_build.py` runs the build. So `git status` shows the DXF as modified
+  after the tests. Run `git checkout out/KIT.dxf` when you did not change the
+  generator.
 - `grep -v` as the last command in a pipe returns 1 when it filters every line.
   Do not read that as a failed build.
