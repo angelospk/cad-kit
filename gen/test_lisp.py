@@ -59,7 +59,9 @@ class FileTests(unittest.TestCase):
 
     def test_loads_and_defines_commands(self):
         it = load()
-        for name in ("C:KSYR", "C:KSYRM", "C:KSYRX", "C:KPAR", "C:KPORTA", "C:KPSEYD", "C:KITHELP"):
+        for name in ("C:KSYR", "C:KSYRM", "C:KSYRX", "C:KPAR", "C:KPORTA", "C:KPSEYD", "C:KITHELP",
+                     "C:KPORTAK", "C:KSKALA", "C:KTRAP", "C:KRAGA", "C:KLED", "C:KSYND", "C:KKLIMAKA",
+                     "C:KDAP", "C:KXYLO", "C:KOROFI"):
             self.assertIn(name, it.globals, name)
 
     def test_no_vl_or_command_calls(self):
@@ -72,7 +74,7 @@ class FileTests(unittest.TestCase):
 class SlidingTests(unittest.TestCase):
     def check_cover(self, n, length):
         it = load()
-        call(it, f'(kit:def-syr "B" {length} {n} 0.25)')
+        call(it, f'(kit:def-syr "B" {length} {n} 0.25 nil)')
         es = ents(it, "B")
         lv = leaves(es)
         self.assertEqual(len(lv), n)
@@ -112,12 +114,12 @@ class SlidingTests(unittest.TestCase):
 
     def test_no_far_line_when_wall_thinner_than_frame(self):
         it = load()
-        call(it, '(kit:def-syr "B" 2.0 2 0.0)')
+        call(it, '(kit:def-syr "B" 2.0 2 0.0 nil)')
         self.assertAlmostEqual(bbox(ents(it, "B"))[3], 0.10)
 
     def test_stacked_leaves_share_the_start(self):
         it = load()
-        call(it, '(kit:def-syrm "B" 3.0 3 0.25 nil)')
+        call(it, '(kit:def-syrm "B" 3.0 3 0.25 nil nil)')
         lv = leaves(ents(it, "B"))
         self.assertEqual(len(lv), 3)
         self.assertEqual({round(l[0], 9) for l in lv}, {0.05})
@@ -128,7 +130,7 @@ class SlidingTests(unittest.TestCase):
 
     def test_pocket_leaves_sit_inside_the_wall(self):
         it = load()
-        call(it, '(kit:def-syrm "B" 1.0 1 0.25 T)')
+        call(it, '(kit:def-syrm "B" 1.0 1 0.25 T nil)')
         lv = leaves(ents(it, "B"))
         self.assertEqual(len(lv), 1)
         self.assertAlmostEqual(lv[0][1], 0.0)
@@ -139,7 +141,7 @@ class SlidingTests(unittest.TestCase):
 class WindowDoorCeilingTests(unittest.TestCase):
     def test_window(self):
         it = load()
-        call(it, '(kit:def-par "B" 1.2 0.3)')
+        call(it, '(kit:def-par "B" 1.2 0.3 nil)')
         x0, y0, x1, y1 = bbox(ents(it, "B"))
         self.assertEqual((round(x0, 9), round(y0, 9), round(x1, 9), round(y1, 9)), (0.0, 0.0, 1.2, 0.3))
 
@@ -186,7 +188,7 @@ class CommandTests(unittest.TestCase):
 
     def test_ksyr_defaults_and_insert(self):
         it = load()
-        it.inputs = [None, None, (10.0, 5.0, 0.0), (10.0, 8.0, 0.0)]   # Enter, Enter, two picks
+        it.inputs = [None, None, None, (10.0, 5.0, 0.0), (10.0, 8.0, 0.0)]   # Enter x3, two picks
         call(it, "(c:KSYR)")
         ins = self.inserts(it)
         self.assertEqual(len(ins), 1)
@@ -199,7 +201,7 @@ class CommandTests(unittest.TestCase):
 
     def test_same_size_reuses_the_block(self):
         it = load()
-        it.inputs = [3, 0.3, (0.0, 0.0, 0.0), (3.6, 0.0, 0.0), None, None, (0.0, 9.0, 0.0), (3.6, 9.0, 0.0)]
+        it.inputs = [3, 0.3, None, (0.0, 0.0, 0.0), (3.6, 0.0, 0.0), None, None, None, (0.0, 9.0, 0.0), (3.6, 9.0, 0.0)]
         call(it, "(c:KSYR)")
         n_def = len(ents(it, "SYR3_3600_300"))
         call(it, "(c:KSYR)")                 # Enter keeps 3 leaves and 0.30
@@ -208,24 +210,24 @@ class CommandTests(unittest.TestCase):
 
     def test_length_is_rounded_to_the_millimetre(self):
         it = load()
-        it.inputs = [None, (0.0, 0.0, 0.0), (1.20049, 0.0, 0.0)]
+        it.inputs = [None, None, (0.0, 0.0, 0.0), (1.20049, 0.0, 0.0)]
         call(it, "(c:KPAR)")
         self.assertEqual(dict(self.inserts(it)[0]["codes"])[2], "PAR_1200_250")
         self.assertAlmostEqual(bbox(ents(it, "PAR_1200_250"))[2], 1.2)
 
     def test_cancel_and_tiny_opening_insert_nothing(self):
         it = load()
-        it.inputs = [None, None, None]
+        it.inputs = [None, None, None, None]
         call(it, "(c:KSYR)")
-        it.inputs = [None, None, (0.0, 0.0, 0.0), (0.1, 0.0, 0.0)]
+        it.inputs = [None, None, None, (0.0, 0.0, 0.0), (0.1, 0.0, 0.0)]
         call(it, "(c:KSYRM)")
         self.assertEqual(self.inserts(it), [])
 
     def test_stacked_and_pocket_commands(self):
         it = load()
-        it.inputs = [3, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
+        it.inputs = [3, None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
         call(it, "(c:KSYRM)")
-        it.inputs = [1, None, (0.0, 4.0, 0.0), (1.0, 4.0, 0.0)]
+        it.inputs = [1, None, None, (0.0, 4.0, 0.0), (1.0, 4.0, 0.0)]
         call(it, "(c:KSYRX)")
         names = [dict(e["codes"])[2] for e in self.inserts(it)]
         self.assertEqual(names, ["SYRM3_3000_250", "SYRX1_1000_250"])
@@ -250,7 +252,7 @@ class CommandTests(unittest.TestCase):
     def test_other_drawing_unit_scales_the_insert(self):
         it = load()
         call(it, "(setq kit:u 100.0)")          # centimetres
-        it.inputs = [None, 25.0, (0.0, 0.0, 0.0), (300.0, 0.0, 0.0)]
+        it.inputs = [None, 25.0, None, (0.0, 0.0, 0.0), (300.0, 0.0, 0.0)]
         call(it, "(c:KSYR)")
         d = dict(self.inserts(it)[0]["codes"])
         self.assertEqual(d[2], "SYR2_3000_250")
@@ -284,12 +286,18 @@ class ReviewTests(unittest.TestCase):
 
     def test_block_entities_do_not_inherit_current_properties(self):
         it = load()
-        call(it, '(kit:def-syr "A" 3.0 2 0.25)')
-        call(it, '(kit:def-syrm "B" 3.0 3 0.25 T)')
-        call(it, '(kit:def-par "C" 1.2 0.25)')
+        call(it, '(kit:def-syr "A" 3.0 2 0.25 nil)')
+        call(it, '(kit:def-syrm "B" 3.0 3 0.25 T nil)')
+        call(it, '(kit:def-par "C" 1.2 0.25 nil)')
         call(it, '(kit:def-porta "D" 0.9 2.2 nil)')
         call(it, '(kit:def-pseyd "E" 3.0 0.3)')
-        for name in "ABCDE":
+        call(it, '(kit:def-portak "F" 0.9 0.25 1 nil T)')
+        call(it, '(kit:def-skala "G" 1.0 16 0.28)')
+        call(it, '(kit:def-trap "H" 1.8 0.9 T)')
+        call(it, '(kit:def-karekla "I" "T")')
+        call(it, '(kit:def-raga "J" 2.0 2)')
+        call(it, '(kit:def-led "K" 2.0 50)')
+        for name in "ABCDEFGHIJK":
             for e in ents(it, name):
                 d = dict(e["codes"])
                 self.assertTrue(62 in d or 420 in d, f"{name} {e['type']}: no colour")
@@ -297,7 +305,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_picks_with_different_z_use_the_plan_length(self):
         it = load()
-        it.inputs = [None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 2.5)]
+        it.inputs = [None, None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 2.5)]
         call(it, "(c:KSYR)")
         d = dict(self.inserts(it)[0]["codes"])
         self.assertEqual(d[2], "SYR2_3000_250")
@@ -306,7 +314,7 @@ class ReviewTests(unittest.TestCase):
     def test_rotated_ucs(self):
         it = load()
         it.ucs_angle = math.radians(30)
-        it.inputs = [None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
+        it.inputs = [None, None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
         call(it, "(c:KSYR)")
         it.inputs = [None, None, None, (2.0, 0.0, 0.0)]
         call(it, "(c:KPORTA)")
@@ -318,7 +326,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_sizes_are_rounded_before_the_block_is_drawn(self):
         it = load()
-        it.inputs = [0.2504, (0.0, 0.0, 0.0), (1.2, 0.0, 0.0)]
+        it.inputs = [0.2504, None, (0.0, 0.0, 0.0), (1.2, 0.0, 0.0)]
         call(it, "(c:KPAR)")
         self.assertEqual(dict(self.inserts(it)[0]["codes"])[2], "PAR_1200_250")
         self.assertEqual(bbox(ents(it, "PAR_1200_250"))[3], 0.25)
@@ -344,11 +352,11 @@ class ReviewTests(unittest.TestCase):
 
     def test_opening_too_small_for_the_leaves_is_refused(self):
         it = load()
-        it.inputs = [4, None, (0.0, 0.0, 0.0), (0.25, 0.0, 0.0)]   # leaves of 6.75 cm
+        it.inputs = [4, None, None, (0.0, 0.0, 0.0), (0.25, 0.0, 0.0)]   # leaves of 6.75 cm
         call(it, "(c:KSYR)")
         self.assertEqual(self.inserts(it), [])
         # a leaf only has to be longer than its two 5 cm stiles
-        it.inputs = [2, None, (0.0, 0.0, 0.0), (0.32, 0.0, 0.0)]   # leaves of 14 cm
+        it.inputs = [2, None, None, (0.0, 0.0, 0.0), (0.32, 0.0, 0.0)]   # leaves of 14 cm
         call(it, "(c:KSYR)")
         self.assertEqual(dict(self.inserts(it)[0]["codes"])[2], "SYR2_320_250")
         for a, b, _ in leaves(ents(it, "SYR2_320_250")):
@@ -356,7 +364,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_leaf_count_out_of_range_asks_again(self):
         it = load()
-        it.inputs = [5, 3, None, (0.0, 0.0, 0.0), (3.6, 0.0, 0.0)]
+        it.inputs = [5, 3, None, None, (0.0, 0.0, 0.0), (3.6, 0.0, 0.0)]
         call(it, "(c:KSYR)")
         self.assertEqual(dict(self.inserts(it)[0]["codes"])[2], "SYR3_3600_250")
         self.assertEqual(it.inputs, [])
@@ -364,10 +372,264 @@ class ReviewTests(unittest.TestCase):
     def test_no_insert_when_the_block_was_not_created(self):
         it = load()
         it.fail_blocks = True
-        it.inputs = [None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
+        it.inputs = [None, None, None, (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)]
         call(it, "(c:KSYR)")
         self.assertEqual(self.inserts(it), [])
         self.assertIn("SYR2_3000_250", " ".join(it.output))
+
+
+def inserts(it):
+    return [e for e in it.entities if e["type"] == "INSERT"]
+
+
+def hatches(it):
+    return [e for e in it.entities if e["type"] == "HATCH"]
+
+
+def codes(e, code):
+    return [v for c, v in e["codes"] if c == code]
+
+
+class MiddleOfWallTests(unittest.TestCase):
+    def test_frame_centred_in_the_wall(self):
+        it = load()
+        call(it, '(kit:def-syr "B" 3.0 2 0.30 T)')
+        lv = leaves(ents(it, "B"))
+        # frame 10 cm deep in a 30 cm wall: tracks move up by 10 cm
+        self.assertAlmostEqual(min(l[2] for l in lv), 0.10 + 0.025)
+        x0, y0, x1, y1 = bbox(ents(it, "B"))
+        self.assertAlmostEqual(y0, 0.10)
+        self.assertAlmostEqual(y1, 0.30)        # far wall face stays where it is
+        self.assertEqual(it.lookup("KIT:YO"), 0.0)
+
+    def test_offset_is_local_to_the_definition(self):
+        it = load()
+        it.run('(defun kit:jambs (len d tw) (+ "x" 1))')  # fails after kit:yo is set
+        with self.assertRaises(Exception):
+            it.run('(kit:def-syr "B" 3.0 2 0.30 T)')
+        self.assertEqual(it.lookup("KIT:YO"), 0.0)
+
+    def test_command_names_the_middle_block(self):
+        it = load()
+        it.inputs = [None, "Mesi", (0.0, 0.0, 0.0), (1.2, 0.0, 0.0)]
+        call(it, "(c:KPAR)")
+        self.assertEqual(dict(inserts(it)[0]["codes"])[2], "PAR_1200_250_M")
+        it.inputs = [None, None, (0.0, 0.0, 0.0), (1.2, 0.0, 0.0)]   # remembers Mesi
+        call(it, "(c:KPAR)")
+        self.assertEqual(dict(inserts(it)[1]["codes"])[2], "PAR_1200_250_M")
+
+
+class PlanDoorTests(unittest.TestCase):
+    def test_single_leaf_hinge_in_the_middle_of_the_wall(self):
+        it = load()
+        call(it, '(kit:def-portak "B" 0.9 0.30 1 nil T)')
+        es = ents(it, "B")
+        arcs = [e for e in es if e["type"] == "ARC"]
+        self.assertEqual(len(arcs), 1)
+        c = dict(arcs[0]["codes"])
+        self.assertAlmostEqual(c[10][0], 0.05)
+        self.assertAlmostEqual(c[10][1], 0.10)     # (0.30 - 0.10) / 2: not at the wall corner
+        self.assertAlmostEqual(c[40], 0.80)
+
+    def test_double_door_two_leaves(self):
+        it = load()
+        call(it, '(kit:def-portak "B" 1.6 0.25 2 nil nil)')
+        arcs = [dict(e["codes"]) for e in ents(it, "B") if e["type"] == "ARC"]
+        self.assertEqual(len(arcs), 2)
+        self.assertEqual({round(a[40], 9) for a in arcs}, {0.75})
+        self.assertEqual(sorted(round(a[10][0], 9) for a in arcs), [0.05, 1.55])
+
+    def test_command(self):
+        it = load()
+        it.inputs = ["2", None, None, (0.0, 0.0, 0.0), (1.4, 0.0, 0.0)]
+        call(it, "(c:KPORTAK)")
+        self.assertEqual(dict(inserts(it)[0]["codes"])[2], "PK2_1400_250")
+        it.inputs = [None, None, "Mesi", "D", (0.0, 0.0, 0.0), (0.9, 0.0, 0.0)]
+        call(it, "(c:KPORTAK)")
+        self.assertEqual(dict(inserts(it)[1]["codes"])[2], "PK1_900_250_D_M")
+
+
+class StairTests(unittest.TestCase):
+    def test_stair_risers_treads_and_walking_line(self):
+        it = load()
+        it.inputs = [1.0, 2.8, 0.28, (0.0, 0.0, 0.0), (5.0, 0.0, 0.0)]
+        call(it, "(c:KSKALA)")
+        name = dict(inserts(it)[0]["codes"])[2]
+        self.assertEqual(name, "SK_1000_16_280")             # 2.80 / 0.175 = 16 risers
+        es = ents(it, name)
+        x0, y0, x1, y1 = bbox(es)
+        self.assertAlmostEqual(x1, 15 * 0.28)
+        self.assertAlmostEqual(y1, 1.0)
+        treads = [e for e in es if e["type"] == "LINE" and abs(pts(e)[0][0] - pts(e)[1][0]) < 1e-9]
+        self.assertEqual(len(treads), 14)
+        self.assertEqual(len([e for e in es if e["type"] == "SOLID"]), 1)   # arrow
+        self.assertEqual(len([e for e in es if e["type"] == "CIRCLE"]), 1)  # start of the walking line
+        self.assertIn("16 riktes x 17.5 cm", " ".join(it.output))
+
+
+class TableTests(unittest.TestCase):
+    def test_chairs_around_the_table(self):
+        it = load()
+        call(it, '(kit:def-trap "B" 1.8 0.9 T)')
+        seats = [e for e in ents(it, "B") if e["type"] == "CIRCLE"]
+        self.assertEqual(len(seats), 8)                       # 3 + 3 + 2 ends
+        self.assertEqual(it.run("(kit:trap-chairs 1.8 T)"), 8)
+        self.assertEqual(it.run("(kit:trap-chairs 2.4 nil)"), 8)
+
+    def test_command_and_square_chair(self):
+        it = load()
+        it.inputs = [2.4, 1.0, "Oxi", (0.0, 0.0, 0.0)]
+        call(it, "(c:KTRAP)")
+        self.assertEqual(dict(inserts(it)[0]["codes"])[2], "TRAP_2400_1000_X")
+        call(it, '(kit:def-karekla "K" "T")')
+        polys = [e for e in ents(it, "K") if e["type"] == "LWPOLYLINE"]
+        self.assertEqual(len(polys), 2)
+
+
+class LightingTests(unittest.TestCase):
+    def test_rail_with_spots(self):
+        it = load()
+        it.inputs = [3, (0.0, 0.0, 0.0), (2.4, 0.0, 0.0)]
+        call(it, "(c:KRAGA)")
+        self.assertEqual(dict(inserts(it)[0]["codes"])[2], "RAGA_2400_3")
+        centres = sorted({round(pts(e)[0][0], 9) for e in ents(it, "RAGA_2400_3") if e["type"] == "CIRCLE"})
+        self.assertEqual(centres, [0.4, 1.2, 2.0])
+
+    def test_led_tape_pattern(self):
+        it = load()
+        call(it, '(setq kit:sc 25)')
+        it.inputs = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)]
+        call(it, "(c:KLED)")
+        name = dict(inserts(it)[0]["codes"])[2]
+        self.assertEqual(name, "LED_1000_25")
+        es = ents(it, name)
+        dashes = [e for e in es if e["type"] == "SOLID"]
+        ticks = [e for e in es if e["type"] == "LINE"]
+        # 7 mm period at 1:25 = 0.175 m: 1.0 / 0.175 -> 6 dashes
+        self.assertEqual(len(dashes), 6)
+        self.assertGreaterEqual(len(ticks), 15)
+        self.assertLessEqual(max(p[0] for e in es for p in pts(e)), 1.0 + 1e-9)
+        for e in es:
+            self.assertEqual(dict(e["codes"])[62], 1)        # plots red
+
+    def test_connection_line(self):
+        it = load()
+        it.inputs = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0), None]
+        call(it, "(c:KSYND)")
+        pl = [e for e in it.entities if e["type"] == "LWPOLYLINE"]
+        self.assertEqual(len(pl), 1)
+        d = dict(pl[0]["codes"])
+        self.assertEqual((d[62], d[6], d[90]), (1, "KIT_SYND", 3))
+        self.assertAlmostEqual(d[48], 0.05)
+        self.assertIn("KIT_SYND", it.tables["LTYPE"])
+
+    def test_scale_command(self):
+        it = load()
+        it.inputs = [30, 100]
+        call(it, "(c:KKLIMAKA)")
+        self.assertEqual(it.lookup("KIT:SC"), 100)
+
+
+class HatchTests(unittest.TestCase):
+    SQUARE = [(0, 0), (4, 0), (4, 3), (0, 3)]
+
+    def test_tile_grid_size_and_origin(self):
+        it = load()
+        pl = it.add_pline(self.SQUARE)
+        it.inputs = [None, 1.0, 0.5, pl, None, (0.3, 0.2, 0.0), None]
+        call(it, "(c:KDAP)")
+        hs = hatches(it)
+        self.assertEqual(len(hs), 1)
+        h = hs[0]
+        self.assertEqual(codes(h, 93), [4])
+        self.assertEqual(codes(h, 78), [2])
+        self.assertEqual(codes(h, 53), [0.0, math.pi / 2])            # radians
+        self.assertEqual(codes(h, 43), [0.3, 0.3])
+        self.assertEqual(codes(h, 44), [0.2, 0.2])
+        offsets = list(zip(codes(h, 45), codes(h, 46)))
+        self.assertAlmostEqual(offsets[0][1], 0.5)            # rows 0.50 apart
+        self.assertAlmostEqual(abs(offsets[1][0]), 1.0)       # columns 1.00 apart
+        self.assertAlmostEqual(offsets[1][1], 0.0)
+
+    def test_rotation_past_180_degrees(self):
+        it = load()
+        pl = it.add_pline(self.SQUARE)
+        it.inputs = [None, 1.0, 1.0, pl, None, (0.0, 0.0, 0.0), (1.0, -1.0, 0.0)]
+        call(it, "(c:KDAP)")
+        self.assertEqual(len(hatches(it)), 1)
+
+    def test_polyline_with_elevation_is_refused(self):
+        it = load()
+        pl = it.add_pline(self.SQUARE)
+        pl["codes"].insert(6, (38, 1.5))
+        it.inputs = [None, 1.0, 1.0, pl, None, (0.0, 0.0, 0.0), None]
+        try:
+            call(it, "(c:KDAP)")
+        except LispError:
+            pass
+        self.assertEqual(hatches(it), [])
+
+    def test_preset_and_rotation(self):
+        it = load()
+        pl = it.add_pline(self.SQUARE)
+        it.inputs = ["TL07", pl, None, (0.0, 0.0, 0.0), (1.0, 1.0, 0.0)]
+        call(it, "(c:KDAP)")
+        h = hatches(it)[0]
+        self.assertAlmostEqual(codes(h, 53)[0], math.pi / 4)
+        ox, oy = codes(h, 45)[0], codes(h, 46)[0]
+        self.assertAlmostEqual(math.hypot(ox, oy), 0.75)
+
+    def test_wood_is_fill_plus_grain_and_open_polyline_is_refused(self):
+        it = load()
+        open_pl = it.add_pline(self.SQUARE, closed=False)
+        pl = it.add_pline(self.SQUARE, bulges={1: 0.4})
+        it.inputs = [open_pl, pl, None, None]
+        call(it, "(c:KXYLO)")
+        hs = hatches(it)
+        self.assertEqual(len(hs), 2)
+        self.assertEqual(codes(hs[0], 2), ["SOLID"])
+        self.assertEqual(codes(hs[1], 2), ["KIT_WOOD"])
+        self.assertEqual(codes(hs[1], 72), [1])
+        self.assertIn(0.4, codes(hs[1], 42))
+        self.assertIn("kleisti", " ".join(it.output))
+
+    def test_ceiling_hatch_colour_and_outline(self):
+        import symbols
+        it = load()
+        pl = it.add_pline(self.SQUARE)
+        it.inputs = ["H240", pl, None]
+        call(it, "(c:KOROFI)")
+        r, g, b = symbols.CEILINGS[2][0]
+        h = hatches(it)[0]
+        self.assertEqual(codes(h, 420), [r * 65536 + g * 256 + b])
+        self.assertAlmostEqual(math.hypot(codes(h, 45)[0], codes(h, 46)[0]), 0.13)  # 2.6 mm at 1:50
+        outline = [e for e in it.entities if e["type"] == "LWPOLYLINE"]
+        self.assertEqual(dict(outline[0]["codes"])[370], 50)
+
+    def test_every_ceiling_colour_matches_the_legend(self):
+        import symbols
+        it = load()
+        for key, (rgb, _) in zip(["H220", "H225", "H240", "H245", "EPIKL", "H275"], symbols.CEILINGS):
+            self.assertEqual(it.run(f'(kit:ceiling-rgb "{key}")'), rgb[0] * 65536 + rgb[1] * 256 + rgb[2], key)
+
+    def test_hatch_checker_wants_subclass_markers_and_radians(self):
+        it = load()
+        good = it.run("(length (kit:pat-tiles 1.0 1.0 (list 0.0 0.0) 0.0))")
+        self.assertEqual(good, 2)
+        bad = """(entmake (list '(0 . "HATCH") '(62 . 7)
+              '(10 0.0 0.0 0.0) '(210 0.0 0.0 1.0) '(2 . "SOLID") '(70 . 1) '(71 . 0)
+              '(91 . 1) '(92 . 3) '(72 . 0) '(73 . 1) '(93 . 3) '(10 0.0 0.0) '(10 1.0 0.0) '(10 1.0 1.0)
+              '(97 . 0) '(75 . 0) '(76 . 1) '(98 . 1) '(10 0.0 0.0)))"""
+        with self.assertRaises(LispError):
+            it.run(bad)
+
+    def test_hatch_checker_catches_a_wrong_count(self):
+        it = load()
+        with self.assertRaises(LispError):
+            it.run("""(entmake (list '(0 . "HATCH") '(100 . "AcDbEntity") '(62 . 7)
+              '(100 . "AcDbHatch") '(10 0.0 0.0 0.0) '(210 0.0 0.0 1.0) '(2 . "SOLID") '(70 . 1) '(71 . 0)
+              '(91 . 1) '(92 . 3) '(72 . 0) '(73 . 1) '(93 . 4) '(10 0.0 0.0) '(10 1.0 0.0) '(10 1.0 1.0)
+              '(97 . 0) '(75 . 0) '(76 . 1) '(98 . 1) '(10 0.0 0.0)))""")
 
 
 class InterpreterTests(unittest.TestCase):

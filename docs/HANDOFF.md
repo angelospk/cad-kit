@@ -1,6 +1,6 @@
 # Handoff
 
-State on 2026-11-10. Read this before you change anything. `AGENTS.md` has the
+State on 2026-11-11 (second request done, see "Second request"). Read this before you change anything. `AGENTS.md` has the
 working rules. `out/ODIGIES.md` is the guide the end user reads (Greek).
 
 ## Who it is for
@@ -153,7 +153,8 @@ after folding to A4. All fields are attributes. The logo is a placeholder box.
 
 Verified:
 
-- 51 unit tests (`gen/test_lisp.py`, `gen/test_build.py`).
+- 84 unit tests (`gen/test_lisp.py`, `gen/test_build.py`).
+- KDAP, KXYLO and KOROFI refuse a polyline with a nonzero elevation (the hatch is made at elevation 0). HATCH angles (code 53) go to `entmake` in radians, as AutoLISP wants for codes 50-58.
 - `KIT.lsp` loads and every command runs in the interpreter, including
   defaults, cancel, a UCS rotated about Z, another drawing unit.
 - The DXF passes the ezdxf audit.
@@ -183,6 +184,57 @@ Not verified:
   minimum leaf was arbitrary). Changed to "longer than the two stiles". That
   last change was not reviewed again.
 
+## Second request (2026-11-11)
+
+A second voice transcript asked for improvements, with nothing removed. What
+was asked, what was built, and the choice made where she was unsure:
+
+| Request | Built |
+|---|---|
+| Sanitary fixtures in blue, as in the plans, printing light blue | `EY_*` blocks, real size. Colour 141 inside the block = (127, 223, 255), the exact cyan measured in the PDFs. Pen 141 plots the object colour. Shapes measured from the PDF vectors (WC 0.36 x 0.55, shower head 0.30, linear drain 0.80) |
+| Nicer wood hatch on the elevation doors | `kit:def-porta` grain: columns 1.2-3.2 cm apart, two tones, broken pieces. Compared by eye with the bathroom elevation door |
+| A wood "super hatch" for any outline | `KXYLO`: solid tan hatch + custom pattern `KIT_WOOD`, made with `entmake` |
+| Room names in Greek, right size at 1:25 / 1:50 / 1:100 / 1:200 | Loose TEXT on layer `Χώροι`, 3 mm on paper, in the palette zone. Not blocks: she edits them with a double click. 1:200 has only these texts |
+| General notes in English | `SIMEIOSEIS`: the reference text, oblique 12 for the italics |
+| A level mark for formed / natural ground | `STATHMI_ED` |
+| A stair she sizes with a command, with a walking line | `KSKALA`: straight flight only; risers = height / 0.175 rounded |
+| Plan door with the hinge set in, and a double door | `KPORTAK`: frame at the wall face or in the middle (`Mesi`), 1 or 2 leaves |
+| Bed, chairs, dining tables | `KR_*`, `KAREKLA*` blocks; `KTRAP` command plus 3 sample tables (she was unsure; both exist) |
+| Existing frames: middle or edge of the wall | `Akri/Mesi` prompt in `KSYR`, `KSYRM`, `KSYRX`, `KPAR`, `KPORTAK`; `_M` suffix |
+| Floor hatches from the legend, tile size of her choice, skirting | `KDAP` (Plakaki w x h, TL01-03, TL07, CN01, WD06) with origin point and direction. Skirting: layers `Σοβατεπί TL-01/TL-07` with the legend true colour, sample lines for MATCHPROP |
+| Ready texts at 1:25: marble sills, square metres, rooms | Palette: ΜΑΡΜΑΡΟΠΟΔΙΑ, ΠΑΤΗΜΑ, `00.00 ΤΜ` |
+| Dimension templates as on sheet 310, for 1:25 and 1:50 ("not 1:100") | Dim styles `KIT_25`, `KIT_50` (cm, Arial, ticks) and red `KIT_FOT_25/50` for lighting, with samples |
+| Lighting: ceiling super hatch, rails with a length, LED as on sheet 311, red dashed connections | `KOROFI`, `KRAGA`, `KLED` (+ new legend symbol), `KSYND`. `KKLIMAKA` sets the plot scale these use |
+| Socket arrows with heights, in four directions, as on sheet 312 | `HL_YPSI{1-6}_{R,L,U,D}` per scale, heights are red attributes |
+| Red height templates `H=0.40m.` as on sheet 315 | Palette texts, 1:25 / 1:50 / 1:100 |
+| "Notes with heights" | She withdrew it in the transcript. Not built |
+
+Decisions:
+
+- **MATCHPROP palette.** MATCHPROP cannot pick an entity inside a block, so
+  everything meant for MATCHPROP (texts, dimensions, skirting lines, hatches)
+  is loose in model space, in the zone `P`. Hatch samples are made by running
+  the LISP hatch commands in the interpreter: one source.
+- **Hatch with entmake.** `kit:hatch` writes the HATCH group codes directly.
+  Pattern offsets are in WCS, already rotated by the line angle: that is what
+  ezdxf writes when it compiles a PAT pattern (`ezdxf/tools/pattern.py`). The
+  interpreter checks the counts (`93`, `78`, `79`, `98`). Not run in a real CAD:
+  this is the riskiest new part. The hatches are not associative.
+- **Paper-sized LISP output** (LED pattern, connection linetype, ceiling hatch
+  spacing) uses `kit:sc`, set by `KKLIMAKA` (default 50).
+- **Skirting colour.** Layer true colour (221, 55, 0) and (255, 196, 20), ACI
+  30 / 50 as the fallback. The CTB plots pens 30 and 50 in the object colour
+  at 0.50, so the line is coloured whether the CAD maps a true-colour object to
+  its ACI pen or not. The floor legend uses the same colours.
+
+Not verified this round:
+
+- `out/KIT.dwg` was **not** rebuilt: the ODA File Converter is not installed on
+  either host any more. The file in `out/` is from 2026-11-10 and is stale.
+  Build it again with `gen/convert.sh` before sending the kit.
+- Italic (oblique) text and the Arial dimension font do not show in the
+  ezdxf previews; only in a CAD program.
+
 ## Backlog, most useful first
 
 1. Open `KIT.dwg` in a real CAD program, load `KIT.lsp`, run each command, plot
@@ -194,9 +246,8 @@ Not verified:
 4. A command that changes the size of an existing kit block in place.
 5. Dimension styles per scale, and a `.dwt` template with layouts, viewports
    and page setups that already point at the CTB files.
-6. More blocks in the same style: hinged door in plan, window and sliding door
-   in elevation, stairs, sanitary fixtures. The reference shows sanitary
-   fixtures in cyan and furniture in grey.
+6. More blocks in the same style: window and sliding door in elevation,
+   L-shaped and U-shaped stairs, step numbers on `KSKALA`, kitchen.
 7. Legends she can edit without the Block Editor (attributes or tables).
 8. `KIT_LED` and `KIT_DASH` as a `.lin` file, hatch patterns as a `.pat` file.
 9. The "book": a generator for specification sheets with code, location,

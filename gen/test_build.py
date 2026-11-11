@@ -14,6 +14,7 @@ import ezdxf
 from ezdxf.addons import acadctb
 
 import build
+import furniture as F
 import symbols as S
 
 
@@ -71,6 +72,9 @@ class CtbTests(unittest.TestCase):
             self.assertIsNone(ctb[141].color)                    # object colour
             self.assertEqual(ctb[7].get_lineweight(), 0.0)       # object lineweight
             self.assertEqual(ctb[200].get_lineweight(), 0.0)
+            self.assertIsNone(ctb[30].color)                     # skirting TL-01: its true colour
+            self.assertIsNone(ctb[50].color)                     # TL-07
+            self.assertAlmostEqual(ctb[30].get_lineweight(), 0.50)
 
 
 class DxfTests(unittest.TestCase):
@@ -146,6 +150,95 @@ class DxfTests(unittest.TestCase):
             blk = self.reloaded.blocks.get(ref.dxf.name)
             want = sorted(a.dxf.tag for a in blk.attdefs())
             self.assertEqual(sorted(a.dxf.tag for a in ref.attribs), want, ref.dxf.name)
+
+
+class AdditionsTests(unittest.TestCase):
+    """Second request: furniture, sanitary, texts, dimensions, skirting, hatches."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.doc, cls.zones = build.build()
+        cls.reloaded = ezdxf.readfile(build.OUT / "KIT.dxf")
+        cls.msp = cls.reloaded.modelspace()
+
+    def test_sanitary_blocks_plot_light_blue(self):
+        for name, _, _ in F.SANITARY:
+            blk = self.reloaded.blocks.get(name)
+            lines = [e for e in blk if e.dxftype() != "HATCH"]
+            self.assertTrue(lines, name)
+            for e in lines:
+                self.assertEqual(e.dxf.color, 141, f"{name} {e.dxftype()}")
+        self.assertEqual(ezdxf.colors.aci2rgb(141), (127, 223, 255))   # the cyan of the reference
+
+    def test_furniture_is_not_blue(self):
+        for name, _, _ in F.FURNITURE:
+            for e in self.reloaded.blocks.get(name):
+                self.assertNotEqual(e.dxf.get("color", 256), 141, name)
+
+    def test_bed_size(self):
+        ext = ezdxf.bbox.extents(self.reloaded.blocks.get("KR_DIPLO_160"), fast=True)
+        self.assertAlmostEqual(ext.size.x, 1.60)
+        self.assertAlmostEqual(ext.size.y, 2.06)
+
+    def test_new_annotation_blocks(self):
+        names = {b.name for b in self.reloaded.blocks}
+        for suffix in build.SCALES:
+            self.assertIn(f"STATHMI_ED_{suffix}", names)
+            for d in "RLUD":
+                for n in build.ARROW_COUNTS:
+                    self.assertIn(f"HL_YPSI{n}_{d}_{suffix}", names)
+        blk = self.reloaded.blocks.get("HL_YPSI3_D_50")
+        self.assertEqual([a.dxf.tag for a in blk.attdefs()], ["ΥΨΟΣ1", "ΥΨΟΣ2", "ΥΨΟΣ3"])
+        self.assertTrue(all(a.dxf.color == 1 for a in blk.attdefs()))
+        ed = [a.dxf.text for a in self.reloaded.blocks.get("STATHMI_ED_50").attdefs()]
+        self.assertEqual(ed, ["ΣΤ. ΔΙΑΜ. ΕΔΑΦΟΥΣ = +0.00", "ΣΤ. ΦΥΣ. ΕΔΑΦΟΥΣ = +0.00"])
+
+    def test_height_arrow_points_to_the_wall(self):
+        for d, (ux, uy) in S.DIRS.items():
+            ext = ezdxf.bbox.extents([e for e in self.reloaded.blocks.get(f"HL_YPSI2_{d}_50") if e.dxftype() == "LINE"])
+            # the line runs from the tip (0, 0) away from the wall
+            far = (ext.extmin.x if ux > 0 else ext.extmax.x) if ux else (ext.extmin.y if uy > 0 else ext.extmax.y)
+            near = (ext.extmax.x if ux > 0 else ext.extmin.x) if ux else (ext.extmax.y if uy > 0 else ext.extmin.y)
+            self.assertAlmostEqual(near, 0.0, msg=d)
+            self.assertGreater(abs(far), 0.5, d)
+
+    def test_general_notes_in_english(self):
+        texts = [e.dxf.text for e in self.reloaded.blocks.get("SIMEIOSEIS_50") if e.dxftype() == "TEXT"]
+        self.assertIn("GENERAL NOTES", texts)
+        self.assertTrue(any("DO NOT SCALE FROM DOCUMENT" in t for t in texts))
+
+    def test_skirting_layers_carry_the_legend_colour(self):
+        for code in ("TL-01", "TL-07"):
+            layer = self.reloaded.layers.get(f"Σοβατεπί {code}")
+            self.assertEqual(layer.rgb, S.SKIRTING[code])
+            self.assertEqual(layer.dxf.lineweight, 50)
+            lines = self.msp.query(f'LWPOLYLINE[layer=="Σοβατεπί {code}"]')
+            self.assertEqual(len(lines), 1)                 # sample for MATCHPROP, loose, not a block
+
+    def test_dimension_styles_in_centimetres(self):
+        for name, k, red in (("KIT_25", 0.025, False), ("KIT_50", 0.05, False), ("KIT_FOT_25", 0.025, True)):
+            st = self.reloaded.dimstyles.get(name)
+            self.assertAlmostEqual(st.dxf.dimscale, k)
+            self.assertAlmostEqual(st.dxf.dimlfac, 100.0)
+            self.assertEqual(st.dxf.dimdec, 0)
+            self.assertEqual(st.dxf.dimclrt, 1 if red else 256)
+        self.assertEqual(len(self.msp.query("DIMENSION")), 4)
+
+    def test_room_texts_at_every_scale_including_200(self):
+        rooms = [t for t in self.msp.query('TEXT[layer=="Χώροι"]') if t.dxf.text == "ΚΑΘΙΣΤΙΚΟ"]
+        heights = sorted(round(t.dxf.height, 6) for t in rooms)
+        self.assertEqual(heights, [round(build.ROOM_H * k, 6) for k in sorted(build.TEXT_SCALES.values())])
+
+    def test_red_height_templates_not_at_200(self):
+        t = [e for e in self.msp.query("TEXT") if e.dxf.text == "H=0.40m."]
+        self.assertEqual(len(t), 3)
+        self.assertTrue(all(e.dxf.color == 1 for e in t))
+
+    def test_hatch_samples_come_from_the_lisp(self):
+        names = sorted(h.dxf.pattern_name for h in self.msp.query("HATCH"))
+        for name in ("KIT_TILE", "KIT_DECK", "KIT_WOOD", "KIT_DIAG", "SOLID"):
+            self.assertIn(name, names)
+        self.assertEqual(names.count("KIT_DIAG"), 6)
 
 
 if __name__ == "__main__":

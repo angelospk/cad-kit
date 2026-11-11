@@ -16,6 +16,7 @@ RULE = 62        # title block rules: 0.25, same at every scale
 WOOD = (205, 186, 165)
 GRAIN = (150, 104, 64)
 INSUL = (248, 246, 176)
+SKIRTING = {"TL-01": (221, 55, 0), "TL-07": (255, 196, 20)}   # layer colours too
 TXT = 1.7        # legend body text
 D45 = math.sqrt(0.5)
 
@@ -66,18 +67,29 @@ def door_tag(b: B, att=True):
     b.label("ΠΡΕΚΙ", "ΠΡΕΚΙ" if not att else "2.20", 0, -1.9, h, align="MC", att=att)
 
 
-def level(b: B, att=True, two=True):
-    """Level mark. two=True: floor level and concrete level."""
+LEVEL_LABELS = {
+    "floor": (("ΔΑΠΕΔΟ", "ΣΤ. ΔΑΠ. = +0.00", "ΣΤΑΘΜΗ ΔΑΠΕΔΟΥ"), ("ΜΠΕΤΟΝ", "ΣΤ. ΜΠ. = -0.10", "ΣΤΑΘΜΗ ΜΠΕΤΟΥ")),
+    "ground": (("ΔΙΑΜΟΡΦΩΜΕΝΟ", "ΣΤ. ΔΙΑΜ. ΕΔΑΦΟΥΣ = +0.00", "ΣΤ. ΔΙΑΜΟΡΦΩΜΕΝΟΥ ΕΔΑΦΟΥΣ"),
+               ("ΦΥΣΙΚΟ", "ΣΤ. ΦΥΣ. ΕΔΑΦΟΥΣ = +0.00", "ΣΤ. ΦΥΣΙΚΟΥ ΕΔΑΦΟΥΣ")),
+}
+
+
+def level(b: B, att=True, two=True, kind="floor"):
+    """Level mark. two=True: two levels (floor / concrete, or formed / natural ground)."""
     b.circle(0, 0, 1.3)
     b.sector(0, 0, 1.3, 90, 180)
     b.sector(0, 0, 1.3, 270, 360)
-    b.line(-3.6, 0, 24 if two else 14, 0)
-    b.line(0, -3.8, 0, 3.8)
     if two:
-        b.label("ΔΑΠΕΔΟ", "ΣΤΑΘΜΗ ΔΑΠΕΔΟΥ" if not att else "ΣΤ. ΔΑΠ. = +0.00", 2.4, 0.9, 1.7, att=att)
-        b.label("ΜΠΕΤΟΝ", "ΣΤΑΘΜΗ ΜΠΕΤΟΥ" if not att else "ΣΤ. ΜΠ. = -0.10", 2.4, -2.7, 1.7, att=att)
+        rows = LEVEL_LABELS[kind]
+        texts = [r[1] if att else r[2] for r in rows]
+        end = max(24.0, 2.4 + max(text_width(t, 1.7) for t in texts) + 1.5)
+        b.line(-3.6, 0, end, 0)
+        for (tag_, _, _), t, y in zip(rows, texts, (0.9, -2.7)):
+            b.label(tag_, t, 2.4, y, 1.7, att=att)
     else:
+        b.line(-3.6, 0, 14, 0)
         b.label("ΣΤΑΘΜΗ", "+0.00", 2.4, 0.9, 1.7, att=att)
+    b.line(0, -3.8, 0, 3.8)
 
 
 def elevation_ref(b: B, att=True):
@@ -147,6 +159,31 @@ def el_outlet(b: B, label):
 EL_OUTLETS = {"TV": "Πρίζα TV", "D": "Πρίζα δικτύου", "TL": "Παροχή τηλεφώνου",
               "K": "Πρίζα ηλ. κουζίνας", "DW": "Πρίζα πλυντηρίου πιάτων",
               "W": "Πρίζα πλυντηρίου ρούχων"}
+
+
+DIRS = {"R": (1, 0), "L": (-1, 0), "U": (0, 1), "D": (0, -1)}
+
+
+def height_arrow(b: B, d: str, n: int):
+    """Arrow to the wall with n points and their heights, as in the socket plans.
+
+    Insertion: the arrow tip, on the wall. d = side of the wall: R, L, U, D.
+    The line runs away from the wall. Heights are red attributes.
+    """
+    ux, uy = DIRS[d]
+    px, py = -uy, ux                            # perpendicular
+    first, pitch = 7.0, 6.0
+    end = first + pitch * (n - 1) + 4.0
+    b.line(0, 0, -ux * end, -uy * end, color=8)
+    bx, by = -ux * 3.2, -uy * 3.2
+    b.fill([(0, 0), (bx + px * 1.5, by + py * 1.5), (bx - px * 1.5, by - py * 1.5)], color=8)
+    for i in range(n):
+        cx, cy = -ux * (first + pitch * i), -uy * (first + pitch * i)
+        b.disc(cx, cy, 0.45, color=8)
+        if uy == 0:
+            b.att(f"ΥΨΟΣ{i + 1}", "0.60", cx, cy + 1.3, 1.6, align="C", color=RED)
+        else:
+            b.att(f"ΥΨΟΣ{i + 1}", "0.60", cx - 1.3, cy, 1.6, align="MR", color=RED)
 
 
 # ------------------------------------------------------------------ electrical, elevation
@@ -219,8 +256,15 @@ def lt_supply(b: B):
 
 
 def lt_led(b: B):
-    """Sample of the LED tape linetype."""
-    b.line(-8, 0, 8, 0, linetype="KIT_LED", ltscale=20 * b.k)
+    """LED tape as in the reference legend: thick dash, three thin ticks. Same as KLED."""
+    x = -8.0
+    while x < 8.0:
+        xe = min(x + 4.0, 8.0)
+        b.fill([(x, -0.3), (xe, -0.3), (xe, 0.3), (x, 0.3)])
+        for k in (1, 2, 3):
+            if xe + 0.75 * k < 8.0:
+                b.line(xe + 0.75 * k, -0.21, xe + 0.75 * k, 0.21, lineweight=9)
+        x = xe + 3.0
 
 
 def lt_panel(b: B):
@@ -243,9 +287,9 @@ LIGHTS = [
     ("FO_EPITRAP", lt_table, "ΕΠΙΤΡΑΠΕΖΙΟ ΦΩΤΙΣΤΙΚΟ"),
     ("FO_OROFIS", lt_ceiling, "ΦΩΤΙΣΤΙΚΟ ΟΡΟΦΗΣ"),
     ("FO_PAROXI", lt_supply, "ΠΡΟΒΛΕΨΗ ΠΑΡΟΧΗΣ ΣΕ ΤΟΙΧΟ"),
-    ("FO_LED", lt_led, "ΛΕΝΤΟΤΑΙΝΙΑ (linetype KIT_LED)"),
+    ("FO_LED", lt_led, "ΛΕΝΤΟΤΑΙΝΙΑ (εντολή KLED)"),
     ("FO_PINAKAS", lt_panel, "ΗΛΕΚΤΡΟΛΟΓΙΚΟΣ ΠΙΝΑΚΑΣ"),
-    ("FO_RAGA", lt_track, "ΡΑΓΑ ΜΕ ΧΩΝΕΥΤΑ ΚΑΙ ΕΞΩΤΕΡΙΚΑ SPOT"),
+    ("FO_RAGA", lt_track, "ΡΑΓΑ ΜΕ ΧΩΝΕΥΤΑ ΚΑΙ ΕΞΩΤΕΡΙΚΑ SPOT (KRAGA)"),
 ]
 
 
@@ -414,8 +458,8 @@ def legend_floors(b: B):
     row(1, "TL-02", ["Πλακάκι 120x120, 0.9cm, R10, υγροί χώροι"], tiles)
     row(2, "TL-03", ["Πλακάκι 120x120, πάχους 2cm, R11 antislip"], tiles)
     row(3, "CN-01", ["Τσιμεντοκονία"], gray)
-    row(4, "TL-01", ["ΣΟΒΑΤΕΠΙ από το πλακάκι δαπέδου, H=7cm"], band((153, 38, 0)))
-    row(5, "TL-07", ["Επένδυση τοίχων WC με πλακίδια 150x75cm"], band((255, 196, 20)))
+    row(4, "TL-01", ["ΣΟΒΑΤΕΠΙ από το πλακάκι δαπέδου, H=7cm"], band(SKIRTING["TL-01"]))
+    row(5, "TL-07", ["Επένδυση τοίχων WC με πλακίδια 150x75cm"], band(SKIRTING["TL-07"]))
     row(6, "MB-02", ["ΜΑΡΜΑΡΟΠΟΔΙΕΣ"], lambda q: q.rect(0, 0, w, h))
     row(7, "WD-06", ["ΔΑΠΕΔΟ DECK ΕΞΩΤΕΡΙΚΟΥ ΧΩΡΟΥ"], deck)
     row(8, None, ["ΓΡΑΜΜΙΚΟ ΣΙΦΩΝΙ ΝΤΟΥΖΙΕΡΑΣ 95εκ."], drain)
@@ -583,23 +627,26 @@ def revisions(b: B):
 
 
 GENERAL_NOTES = [
-    "-   ΜΗ ΜΕΤΡΑΤΕ ΜΕ ΚΛΙΜΑΚΑ ΑΠΟ ΤΟ ΣΧΕΔΙΟ. ΙΣΧΥΟΥΝ ΟΙ ΑΝΑΓΡΑΦΟΜΕΝΕΣ ΔΙΑΣΤΑΣΕΙΣ.",
-    "-   ΚΑΘΕ ΑΣΥΜΦΩΝΙΑ ΓΝΩΣΤΟΠΟΙΕΙΤΑΙ ΣΤΟΝ ΜΕΛΕΤΗΤΗ ΠΡΙΝ ΑΠΟ ΤΗΝ ΕΝΑΡΞΗ ΤΩΝ ΕΡΓΑΣΙΩΝ.",
-    "-   ΤΑ ΣΧΕΔΙΑ ΔΙΑΒΑΖΟΝΤΑΙ ΜΑΖΙ ΜΕ ΤΙΣ ΑΡΧΙΤΕΚΤΟΝΙΚΕΣ, ΣΤΑΤΙΚΕΣ ΚΑΙ Η/Μ ΜΕΛΕΤΕΣ.",
-    "-   ΟΛΑ ΤΑ ΤΕΛΕΙΩΜΑΤΑ ΣΤΟΥΣ ΥΓΡΟΥΣ ΧΩΡΟΥΣ ΕΧΟΥΝ ΣΤΕΓΑΝΗ Η ΑΝΤΙΟΛΙΣΘΗΡΗ ΕΠΕΞΕΡΓΑΣΙΑ.",
+    "-     DO NOT SCALE FROM DOCUMENT. USE PROVIDED DIMENSIONS OR ASK.",
+    "-     ANY DISCREPANCY TO BE BROUGHT TO THE NOTICE OF CONSULTANT PRIOR TO COMMENCEMENT OF WORK.",
+    "-     DRAWINGS TO BE READ IN CONJUNCTION WITH RELEVANT ARCHITECTURAL, STRUCTURAL, INTERIOR,",
+    "       LIGHTING, MEP AND LANDSCAPE CONSULTANTS' PACKAGES.",
+    "-     ALL FINISHES IN WET AREAS WILL HAVE WATERPROOF OR ANTISLIP TREATMENT.",
 ]
+ITALIC = 12.0      # oblique angle: the reference notes are in italics
 
 
 def general_notes(b: B):
-    """General notes 190 x 30 mm. Insertion: lower-right corner."""
+    """General notes 190 x 30 mm, in English as in the reference. Insertion: lower-right corner."""
     b.rect(-PANEL_W, 0, 0, 30)
-    w = text_width("ΓΕΝΙΚΕΣ ΣΗΜΕΙΩΣΕΙΣ", 1.5, "KIT-B")
-    b.text("ΓΕΝΙΚΕΣ ΣΗΜΕΙΩΣΕΙΣ", -186, 24.5, 1.5, "KIT-B")
-    b.line(-186, 23.9, -186 + w, 23.9)
+    w = text_width("GENERAL NOTES", 1.6, "KIT-B")
+    b.text("GENERAL NOTES", -186, 25.0, 1.6, "KIT-B")
+    b.line(-186, 24.3, -186 + w, 24.3)
     for i, s in enumerate(GENERAL_NOTES):
-        if text_width(s, 1.4, "KIT-L") > PANEL_W - 8:
+        if text_width(s, 1.4, "KIT") > PANEL_W - 8:
             raise ValueError(f"note too long: {s!r}")
-        b.text(s, -186, 18.5 - i * 4.2, 1.4, "KIT-L")
+        t = b.text(s, -186, 19.0 - i * 3.6, 1.4, "KIT")
+        t.dxf.oblique = ITALIC
 
 
 def sheet_frame(b: B, size):

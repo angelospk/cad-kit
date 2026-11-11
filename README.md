@@ -7,18 +7,28 @@ and the generator that builds it.
 
 ![Legends](out/preview/03-ypomnimata-1-50.png)
 
+![Furniture and sanitary](out/preview/06-epipla-ygieinis.png)
+
 ## What is in the kit
 
-- `out/KIT.dxf`: layers, text styles and 175 blocks, laid out in model space.
+- `out/KIT.dxf`: layers, text styles, dimension styles and 277 blocks, laid out
+  in model space.
   - Tags and symbols, electrical and lighting symbols, 7 legends, title block,
     revision table, general notes, sheet frames A0 to A3. Each at 1:25, 1:50
     and 1:100.
   - Sample sliding frames, windows, a door in elevation, a suspended ceiling in
-    section.
+    section, doors in plan, a stair, dining tables.
+  - Sanitary fixtures (light blue, as in the reference plans), beds, chairs.
+  - Socket height arrows in four directions.
+  - A palette of loose objects for copy or MATCHPROP: room names at 1:25 to
+    1:200, dimension samples, skirting lines, hatch samples.
 - `out/ctb/KIT-25.ctb`, `KIT-50.ctb`, `KIT-100.ctb`: the same colours, pen
   widths per scale. Electrical layers plot red.
-- `lisp/KIT.lsp`: commands that draw a sliding frame, window, door or ceiling
-  at the size you pick (`KSYR`, `KSYRM`, `KSYRX`, `KPAR`, `KPORTA`, `KPSEYD`).
+- `lisp/KIT.lsp`: commands that draw at the size you pick: sliding frames,
+  windows, doors, ceiling, stair, dining table, lighting track, LED tape
+  (`KSYR`, `KSYRM`, `KSYRX`, `KPAR`, `KPORTA`, `KPORTAK`, `KPSEYD`, `KSKALA`,
+  `KTRAP`, `KRAGA`, `KLED`, `KSYND`), and hatch commands for floors, wood and
+  ceilings (`KDAP`, `KXYLO`, `KOROFI`).
 - `out/fonts`: Commissioner in four static weights (SIL Open Font License).
 - `out/ODIGIES.md`: the user guide, in Greek.
 - `out/preview`: pictures of the content.
@@ -30,7 +40,8 @@ it as DWG, or build the DWG with `gen/convert.sh`.
 
 Nothing here has run in AutoCAD, ZWCAD or BricsCAD yet. The DXF passes the
 ezdxf audit, the DWG round trip through the ODA File Converter is identical,
-and `KIT.lsp` runs in the interpreter in `gen/minilisp.py` with 51 tests.
+and `KIT.lsp` runs in the interpreter in `gen/minilisp.py`; 84 tests in all.
+The DWG round trip was not repeated after the second round of additions.
 
 To continue the work, read `docs/HANDOFF.md` and `AGENTS.md`.
 

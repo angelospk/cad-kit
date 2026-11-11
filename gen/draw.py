@@ -86,6 +86,16 @@ class B:
         return self.layout.add_lwpolyline([(*self.P(x, y), bulge) for x, y, bulge in pts],
                                           format="xyb", close=True, dxfattribs=self.A(a))
 
+    def bpoly(self, pts, close=True, **a):
+        """Polyline with bulges: pts = (x, y, bulge)."""
+        return self.layout.add_lwpolyline([(*self.P(x, y), bulge) for x, y, bulge in pts],
+                                          format="xyb", close=close, dxfattribs=self.A(a))
+
+    def bfill(self, pts, **a):
+        h = self._hatch(a)
+        h.paths.add_polyline_path([(*self.P(x, y), bulge) for x, y, bulge in pts], is_closed=True)
+        return h
+
     def circle(self, x, y, r, **a):
         return self.layout.add_circle(self.P(x, y), r * self.k, dxfattribs=self.A(a))
 

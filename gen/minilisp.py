@@ -147,6 +147,7 @@ class Interp:
         self.prompts: list[str] = []        # every message shown by a get* function
         self.calls: set[str] = set()
         self.open_block: str | None = None
+        self.drawing: list[dict] = []       # entities that exist before a command runs
 
     # ------------------------------------------------------------ variables
     def lookup(self, name):
@@ -368,7 +369,7 @@ class Interp:
                 return None
             self.tables["BLOCK"].add(name.upper())
             return name
-        if kind not in ("LINE", "LWPOLYLINE", "CIRCLE", "ARC", "SOLID", "INSERT"):
+        if kind not in ("LINE", "LWPOLYLINE", "CIRCLE", "ARC", "SOLID", "INSERT", "HATCH"):
             raise LispError(f"entmake: entity type {kind} not known to the checker")
         if kind == "LWPOLYLINE":
             n = sum(1 for c, _ in ent["codes"] if c == 10)
@@ -376,6 +377,8 @@ class Interp:
                 raise LispError(f"LWPOLYLINE: code 90 says {first.get(90)} vertices, list has {n}")
             if [v for c, v in ent["codes"] if c == 100] != ["AcDbEntity", "AcDbPolyline"]:
                 raise LispError("LWPOLYLINE: needs the two subclass markers")
+        if kind == "HATCH":
+            check_hatch(ent["codes"])
         if kind == "INSERT":
             if first[2].upper() not in self.tables["BLOCK"]:
                 raise LispError(f"INSERT: block {first[2]} is not defined")
@@ -388,11 +391,57 @@ class Interp:
         self.entities.append(ent)
         return ent
 
+    def add_pline(self, pts, closed=True, bulges=None):
+        """A LWPOLYLINE already in the drawing, for entsel. Returns its entity name."""
+        codes = [(0, "LWPOLYLINE"), (8, "0"), (100, "AcDbEntity"), (100, "AcDbPolyline"),
+                 (90, len(pts)), (70, 1 if closed else 0)]
+        for k, (x, y) in enumerate(pts):
+            codes += [(10, [float(x), float(y)]), (40, 0.0), (41, 0.0), (42, float((bulges or {}).get(k, 0.0)))]
+        ent = {"type": "LWPOLYLINE", "codes": codes, "block": None}
+        self.drawing.append(ent)
+        return ent
+
     def next_input(self, what, args=()):
         self.prompts += [a for a in args if isinstance(a, str)]
         if not self.inputs:
             raise LispError(f"{what}: no queued input")
         return self.inputs.pop(0)
+
+
+def check_hatch(codes):
+    """Structure AutoCAD needs when a HATCH is made with entmake."""
+    seq = [c for c, _ in codes]
+    val = dict(codes)
+    if [v for c, v in codes if c == 100] != ["AcDbEntity", "AcDbHatch"]:
+        raise LispError("HATCH: needs the two subclass markers AcDbEntity, AcDbHatch")
+    if val.get(91) != 1:
+        raise LispError("HATCH: the checker models one boundary path (91 . 1)")
+    i93, i97 = seq.index(93), seq.index(97)
+    path = seq[i93 + 1:i97]
+    n = val[93]
+    if path.count(10) != n:
+        raise LispError(f"HATCH: 93 says {n} vertices, path has {path.count(10)}")
+    if val.get(72) == 1 and path.count(42) != n:
+        raise LispError("HATCH: 72 = 1 needs one bulge per vertex")
+    solid = val.get(70) == 1
+    if solid != (val.get(2) == "SOLID"):
+        raise LispError("HATCH: 70 = 1 only with pattern SOLID")
+    if not solid:
+        if seq.count(53) != val.get(78):
+            raise LispError(f"HATCH: 78 says {val.get(78)} pattern lines, found {seq.count(53)}")
+        for k, c in enumerate(seq):
+            if c == 79:
+                want = codes[k][1]
+                got = 0
+                for c2 in seq[k + 1:]:
+                    if c2 != 49:
+                        break
+                    got += 1
+                if got != want:
+                    raise LispError(f"HATCH: 79 says {want} dashes, found {got}")
+    i98 = seq.index(98)
+    if seq[i98 + 1:].count(10) != val[98]:
+        raise LispError("HATCH: seed point count")
 
 
 def _num(v, name):
@@ -463,6 +512,8 @@ def b_cons(i, a, b):
 
 def b_car(i, v):
     if v is None:
+        return None
+    if v == []:
         return None
     return v.car if isinstance(v, Dot) else v[0]
 
@@ -567,6 +618,46 @@ def b_getkword(i, *a):
     return i.next_input("getkword", a)
 
 
+def b_entsel(i, *a):
+    ent = i.next_input("entsel", a)
+    if ent is None:
+        return None
+    pt = _first(ent, 10)
+    return [ent, [float(pt[0]), float(pt[1]), 0.0]]
+
+
+def _first(ent, code):
+    for c, v in ent["codes"]:
+        if c == code:
+            return v
+    return None
+
+
+def b_entget(i, ent):
+    if not isinstance(ent, dict) or "codes" not in ent:
+        raise LispError(f"entget: not an entity name: {ent!r}")
+    out = [Dot(-1, ent)]
+    for c, v in ent["codes"]:
+        out.append([c] + list(v) if isinstance(v, list) else Dot(c, v))
+    return out
+
+
+def b_assoc(i, key, alist):
+    for item in alist or []:
+        if (item.car if isinstance(item, Dot) else item[0]) == key:
+            return item
+    return None
+
+
+def b_logand(i, *a):
+    out = -1
+    for v in a:
+        if not isinstance(v, int):
+            raise LispError(f"logand: not an integer: {v!r}")
+        out &= v
+    return out
+
+
 def b_mapcar(i, f, *lists):
     return [i.apply(f, list(items)) for items in zip(*[l or [] for l in lists])]
 
@@ -597,6 +688,7 @@ BUILTINS = {
     "GETPOINT": b_getpoint, "GETDIST": b_getnum("getdist"), "GETREAL": b_getnum("getreal"),
     "GETINT": b_getnum("getint"), "GETKWORD": b_getkword, "INITGET": lambda i, *a: None,
     "PRINC": b_princ, "PROMPT": b_princ, "TERPRI": lambda i: None,
+    "ENTSEL": b_entsel, "ENTGET": b_entget, "ASSOC": b_assoc, "LOGAND": b_logand,
 }
 
 # functions that exist in every target CAD (AutoCAD / LT 2024+ / BricsCAD / ZWCAD)
