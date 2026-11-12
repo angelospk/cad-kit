@@ -76,7 +76,7 @@ KIT_LAYERS = [
     ("Υδραυλικά", 141, 18, None),
     ("Γεμίσματα", 254, -3, None),
     ("Σοβατεπί TL-01", 30, 50, None),
-    ("Σοβατεπί TL-07", 50, 50, None),
+    ("Σοβατεπί TL-07", 40, 50, None),
 ]
 # layers that also carry a true colour: a line drawn on them, or given their
 # properties with MATCHPROP, looks like the line in the floor legend
@@ -105,7 +105,7 @@ CONST_PENS = {8: 0.18, 221: 0.18, 60: 0.13, 61: 0.18, 62: 0.25, 64: 0.35, 65: 0.
 RED_PENS = {1: 0.25, 12: 0.25}             # plot red
 PLOT_RED = (220, 0, 0)
 GRAY_PENS = {9: 0.18}                      # plot 40 % grey
-OWN_COLOUR_PENS = {141: 0.18, 30: 0.50, 50: 0.50}   # plot in the object colour
+OWN_COLOUR_PENS = {141: 0.18, 30: 0.50, 40: 0.50}   # plot in the object colour
 
 
 def pens(scale: str) -> dict[int, float]:

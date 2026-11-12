@@ -222,10 +222,13 @@ Decisions:
   this is the riskiest new part. The hatches are not associative.
 - **Paper-sized LISP output** (LED pattern, connection linetype, ceiling hatch
   spacing) uses `kit:sc`, set by `KKLIMAKA` (default 50).
-- **Skirting colour.** Layer true colour (221, 55, 0) and (255, 196, 20), ACI
-  30 / 50 as the fallback. The CTB plots pens 30 and 50 in the object colour
-  at 0.50, so the line is coloured whether the CAD maps a true-colour object to
-  its ACI pen or not. The floor legend uses the same colours.
+- **Skirting colour.** Layers on ACI 30 and 40, with a true colour equal to the
+  ACI colour exactly: (255, 127, 0) and (255, 191, 0). The CTB plots pens 30
+  and 40 in the object colour at 0.50. The PDF colours were (221, 55, 0) and
+  (255, 196, 20), but DWG keeps only the nearest ACI of a true colour: the ODA
+  converter turned the first into ACI 22 (her "Πλάκα Στέγης" pen, black 0.40).
+  Every free ACI near that red is taken, so Άγγελος chose orange ACI 30. The
+  floor legend uses the same colours.
 
 Not verified this round:
 

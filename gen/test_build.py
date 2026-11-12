@@ -12,6 +12,7 @@ import zlib
 warnings.simplefilter("ignore")
 import ezdxf
 from ezdxf.addons import acadctb
+from ezdxf.colors import aci2rgb
 
 import build
 import furniture as F
@@ -73,7 +74,7 @@ class CtbTests(unittest.TestCase):
             self.assertEqual(ctb[7].get_lineweight(), 0.0)       # object lineweight
             self.assertEqual(ctb[200].get_lineweight(), 0.0)
             self.assertIsNone(ctb[30].color)                     # skirting TL-01: its true colour
-            self.assertIsNone(ctb[50].color)                     # TL-07
+            self.assertIsNone(ctb[40].color)                     # TL-07
             self.assertAlmostEqual(ctb[30].get_lineweight(), 0.50)
 
 
@@ -211,6 +212,10 @@ class AdditionsTests(unittest.TestCase):
         for code in ("TL-01", "TL-07"):
             layer = self.reloaded.layers.get(f"Σοβατεπί {code}")
             self.assertEqual(layer.rgb, S.SKIRTING[code])
+            # DWG keeps only the nearest ACI of a true colour, and the CTB picks
+            # the pen by ACI: the true colour must be the layer ACI exactly
+            self.assertEqual(tuple(aci2rgb(layer.dxf.color)), S.SKIRTING[code])
+            self.assertIn(layer.dxf.color, build.OWN_COLOUR_PENS)
             self.assertEqual(layer.dxf.lineweight, 50)
             lines = self.msp.query(f'LWPOLYLINE[layer=="Σοβατεπί {code}"]')
             self.assertEqual(len(lines), 1)                 # sample for MATCHPROP, loose, not a block

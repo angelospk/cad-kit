@@ -16,7 +16,7 @@ RULE = 62        # title block rules: 0.25, same at every scale
 WOOD = (205, 186, 165)
 GRAIN = (150, 104, 64)
 INSUL = (248, 246, 176)
-SKIRTING = {"TL-01": (221, 55, 0), "TL-07": (255, 196, 20)}   # layer colours too
+SKIRTING = {"TL-01": (255, 127, 0), "TL-07": (255, 191, 0)}   # = ACI 30, 40: layer colours too
 TXT = 1.7        # legend body text
 D45 = math.sqrt(0.5)
 
